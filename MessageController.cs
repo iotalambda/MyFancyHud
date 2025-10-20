@@ -15,9 +15,11 @@ public class MessageController
 
     private IdleMessageWindow? idleWindow;
     private ScheduledMessageWindow? scheduledWindow;
+    private ActivityVignetteWindow? vignetteWindow;
     private bool wasIdle = false;
     private DateTime? lastScheduledMessageTime;
     private DateTime lastRewardCheckTime = DateTime.MinValue;
+    private DateTime? activityStartTime = null;
     private int starCount = 0;
 
     public MessageController(
@@ -67,6 +69,56 @@ public class MessageController
         if (!isTrackingPeriod)
         {
             starCount = 0;
+        }
+
+        // Activity vignette logic: Show after continuous activity, hide when idle
+        if (isTrackingPeriod)
+        {
+            if (!isIdle)
+            {
+                // User is active
+                if (activityStartTime == null)
+                {
+                    // Just became active, start tracking
+                    activityStartTime = DateTime.Now;
+                    logger?.LogInformation($"Activity tracking started at {activityStartTime}");
+                }
+
+                var activeSeconds = (DateTime.Now - activityStartTime.Value).TotalSeconds;
+
+                if (activeSeconds >= Constants.ActivityVignetteDelaySeconds)
+                {
+                    // Been active long enough, show vignette and update growth
+                    ShowVignette();
+
+                    // Start growth and update continuously
+                    if (vignetteWindow != null && !vignetteWindow.IsDisposed)
+                    {
+                        vignetteWindow.StartGrowth();
+                        vignetteWindow.UpdateGrowth();
+                    }
+                }
+            }
+            else
+            {
+                // User is idle, hide vignette and reset activity timer
+                if (activityStartTime != null)
+                {
+                    logger?.LogInformation("User became idle, hiding vignette");
+                }
+                HideVignette();
+                activityStartTime = null;
+            }
+        }
+        else
+        {
+            // Not in tracking period, hide vignette
+            if (activityStartTime != null)
+            {
+                logger?.LogInformation("Not in tracking period, hiding vignette");
+            }
+            HideVignette();
+            activityStartTime = null;
         }
 
         // Always respond to user becoming active - hide window immediately
@@ -174,6 +226,41 @@ public class MessageController
     }
 
     /// <summary>
+    /// Show the activity vignette overlay
+    /// </summary>
+    private void ShowVignette()
+    {
+        InvokeOnUIThread(() =>
+        {
+            if (vignetteWindow == null || vignetteWindow.IsDisposed)
+            {
+                vignetteWindow = new ActivityVignetteWindow();
+                vignetteWindow.Show();
+                logger?.LogInformation("Activity vignette window created and shown");
+                System.Diagnostics.Debug.WriteLine("MessageController: Vignette window created and shown");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Hide the activity vignette overlay
+    /// </summary>
+    private void HideVignette()
+    {
+        InvokeOnUIThread(() =>
+        {
+            if (vignetteWindow != null && !vignetteWindow.IsDisposed)
+            {
+                vignetteWindow.ResetGrowth();
+                vignetteWindow.Close();
+                vignetteWindow.Dispose();
+                vignetteWindow = null;
+                logger?.LogInformation("Activity vignette hidden");
+            }
+        });
+    }
+
+    /// <summary>
     /// Show reward windows for staying active
     /// </summary>
     private void ShowReward(int starCount)
@@ -185,7 +272,7 @@ public class MessageController
             // Show multiple stars with random delays (0.. seconds) so they trickle in
             for (int i = 0; i < starCount; i++)
             {
-                var delay = random.Next(1, TimeSpan.FromSeconds(Constants.RewardCheckIntervalSeconds).Milliseconds + 1);
+                var delay = random.Next(1, Constants.RewardCheckIntervalSeconds * 1000 + 1);
 
                 var delayTimer = new System.Windows.Forms.Timer { Interval = delay + 1 };
                 delayTimer.Tick += (s, e) =>
@@ -208,6 +295,7 @@ public class MessageController
     public void Cleanup()
     {
         HideIdleMessage();
+        HideVignette();
 
         InvokeOnUIThread(() =>
         {

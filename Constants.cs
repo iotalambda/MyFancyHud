@@ -34,6 +34,15 @@ public static class Constants
     public static readonly int RewardCheckIntervalSeconds = 20; // How often to check for activity and award rewards (seconds)
     public static readonly int RewardActivityWindowSeconds = 20; // Time window to check for user activity (seconds)
 
+    // Activity Vignette Configuration
+    public static readonly int ActivityVignetteDelaySeconds = 5; // Show vignette after this many seconds of activity (seconds)
+    public static readonly double ActivityVignetteGradeMaxOpacity = 0.4; // Maximum opacity of the vignette overlay (0.0 to 1.0)
+    public static readonly int ActivityVignetteMaxGradeSizePixels = 16; // Maximum distance between vignette layers (pixels)
+    public static readonly int ActivityVignetteCornerRadius = 40; // Corner radius for vignette holes (pixels)
+    public static readonly int ActivityVignetteStageDurationSeconds = 5; // Duration of each stage (seconds)
+    public static readonly double ActivityVignetteOpacityExponentMultiplier = 0.7; // Exponent multiplier for opacity falloff (higher = faster falloff)
+    public static readonly int ActivityVignetteRainbowCycleDurationMs = 2000; // Duration of one rainbow cycle (milliseconds)
+
     // Schedule Loader Configuration
     public static string DataFolderPath { get; set; } = string.Empty;
     public static string ScheduleFilePath => Path.Combine(DataFolderPath, "schedule.json");
