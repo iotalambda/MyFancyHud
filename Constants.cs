@@ -7,7 +7,7 @@ public static class Constants
     public static readonly int ClockUpdateIntervalMs = 1000; // How often to update the clock display (milliseconds)
 
     // Idle Detection
-    public static readonly int DefaultIdleTimeoutMinutes = 1; // Default idle timeout in minutes
+    public static readonly int DefaultIdleTimeoutSeconds = 30; // Default idle timeout in minutes
     public static readonly int DebugIdleTimeoutSeconds = 5; // Default idle timeout for debug mode in seconds
 
     // Idle Message Background Fade
@@ -31,7 +31,8 @@ public static class Constants
     public static readonly int ScheduledMessageMargin = 20; // Distance from screen edge
 
     // Schedule Loader Configuration
-    public static readonly string ScheduleFilePath = @"C:\dev\mfh\schedule.json";
-    public static readonly string ScheduleLogFilePath = @"C:\dev\mfh\schedule_loader.log";
+    public static string DataFolderPath { get; set; } = string.Empty;
+    public static string ScheduleFilePath => Path.Combine(DataFolderPath, "schedule.json");
+    public static string ScheduleLogFilePath => Path.Combine(DataFolderPath, "schedule_loader.log");
     public static readonly int ScheduleReloadIntervalMinutes = 5; // How often to reload schedule from file
 }

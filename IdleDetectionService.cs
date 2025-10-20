@@ -14,7 +14,7 @@ public class IdleDetectionService
         public uint dwTime;
     }
 
-    public TimeSpan IdleTimeThreshold { get; set; } = TimeSpan.FromMinutes(Constants.DefaultIdleTimeoutMinutes);
+    public TimeSpan IdleTimeThreshold { get; set; } = TimeSpan.FromSeconds(Constants.DefaultIdleTimeoutSeconds);
     public string IdleMessage { get; set; } = Constants.DefaultIdleMessage;
 
     public TimeSpan GetIdleTime()

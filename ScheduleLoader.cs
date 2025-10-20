@@ -16,8 +16,13 @@ public class ScheduleLoader : IDisposable
     {
         try
         {
-            var logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}";
-            File.AppendAllText(Constants.ScheduleLogFilePath, logMessage);
+            // Only log if the directory exists
+            var logDir = Path.GetDirectoryName(Constants.ScheduleLogFilePath);
+            if (!string.IsNullOrEmpty(logDir) && Directory.Exists(logDir))
+            {
+                var logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}";
+                File.AppendAllText(Constants.ScheduleLogFilePath, logMessage);
+            }
         }
         catch
         {
@@ -92,22 +97,22 @@ public class ScheduleLoader : IDisposable
                 return;
             }
 
-            Log($"Deserialization successful. Creating Schedule object with {dto.Items.Count} items");
+            Log($"Deserialization successful. Creating Schedule object with {dto.Schedule.Count} items");
 
             lock (_lock)
             {
                 _currentSchedule = new Schedule(
-                    StartsAt: dto.StartsAt,
-                    EndsAt: dto.EndsAt,
-                    ScheduleItems: dto.Items.Select(i => new Schedule.Item(
+                    PadMinutes: dto.PadMinutes,
+                    ScheduleItems: dto.Schedule.Select(i => new Schedule.Item(
                         At: i.At,
                         Label: i.Label,
                         ItemKind: i.Kind
-                    )).ToList()
+                    )).ToList(),
+                    AlarmSoundFile: dto.AlarmSoundFile
                 );
             }
 
-            Log($"Schedule loaded successfully from {Constants.ScheduleFilePath} with {dto.Items.Count} items");
+            Log($"Schedule loaded successfully from {Constants.ScheduleFilePath} with {dto.Schedule.Count} items");
         }
         catch (JsonException ex)
         {
@@ -136,9 +141,9 @@ public class ScheduleLoader : IDisposable
 
     private class ScheduleDto
     {
-        public TimeOnly StartsAt { get; set; }
-        public TimeOnly EndsAt { get; set; }
-        public List<ItemDto> Items { get; set; } = new();
+        public int PadMinutes { get; set; }
+        public List<ItemDto> Schedule { get; set; } = new();
+        public string? AlarmSoundFile { get; set; }
     }
 
     private class ItemDto

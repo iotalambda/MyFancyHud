@@ -21,6 +21,12 @@ public class DebugControllerForm : Form
         InitializeComponent();
         SetupTimer();
 
+        // For idle message debug, show it immediately
+        if (debugConfig.ShowIdleMessage)
+        {
+            messageController.ShowIdleMessage();
+        }
+
         // For scheduled message debug, show it immediately
         if (debugConfig.ShowScheduledMessage)
         {

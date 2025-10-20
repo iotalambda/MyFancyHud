@@ -86,7 +86,7 @@ public class MyFancyHudWorker : BackgroundService
             var debugMessage = new Schedule.Item(
                 At: TimeOnly.FromDateTime(DateTime.Now),
                 Label: debugConfig.ScheduledMessageText,
-                ItemKind: Schedule.Item.Kind.Alert
+                ItemKind: debugConfig.ScheduledMessageKind
             );
             messageController.ShowScheduledMessage(debugMessage);
         }

@@ -37,15 +37,29 @@ public class MessageController
     {
         bool isIdle = idleDetectionService.IsIdle();
 
-        if (isIdle && !wasIdle)
+        // Always respond to user becoming active - hide window immediately
+        if (!isIdle && wasIdle)
         {
-            // User just became idle
+            HideIdleMessage();
+            wasIdle = false;
+            return;
+        }
+
+        // Check if we are currently in a tracking period (only for showing window)
+        var schedule = ScheduleLoader.Schedule;
+        bool isTrackingPeriod = schedule?.IsCurrentlyTracking(TimeOnly.FromDateTime(DateTime.Now)) ?? false;
+
+        // Only show idle window if we're in a tracking period
+        if (isIdle && !wasIdle && isTrackingPeriod)
+        {
             ShowIdleMessage();
             wasIdle = true;
+            return;
         }
-        else if (!isIdle && wasIdle)
+
+        // If we're showing idle window but not in tracking period anymore, hide it
+        if (wasIdle && !isTrackingPeriod)
         {
-            // User is no longer idle
             HideIdleMessage();
             wasIdle = false;
         }
@@ -81,8 +95,9 @@ public class MessageController
         {
             if (idleWindow == null || idleWindow.IsDisposed)
             {
-                idleWindow = new IdleMessageWindow(idleDetectionService.IdleMessage);
+                idleWindow = new IdleMessageWindow(idleDetectionService.IdleMessage, idleDetectionService.IdleTimeThreshold);
                 idleWindow.Show();
+                wasIdle = true; // Track that we're showing the idle window
                 logger?.LogInformation("Idle message shown");
             }
         });
@@ -100,6 +115,7 @@ public class MessageController
                 idleWindow.Close();
                 idleWindow.Dispose();
                 idleWindow = null;
+                wasIdle = false; // Track that we're no longer showing the idle window
                 logger?.LogInformation("Idle message hidden");
             }
         });

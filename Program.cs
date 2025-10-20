@@ -8,9 +8,38 @@ class Program
     [STAThread]
     static void Main(string[] args)
     {
-        // Parse debug arguments
+        // First argument (if not a flag) should be the data folder path
+        string? dataFolderPath = null;
+        if (args.Length > 0 && !args[0].StartsWith("--"))
+        {
+            dataFolderPath = args[0];
+        }
+
+        // Validate and set data folder path
+        if (string.IsNullOrWhiteSpace(dataFolderPath))
+        {
+            var errorMsg = "ERROR: Data folder path is required as the first argument.\n\n" +
+                          "Usage: MyFancyHud.exe <data-folder-path> [options]\n" +
+                          "Example: MyFancyHud.exe \"C:\\dev\\mfh\\\"\n\n" +
+                          $"Received {args.Length} arguments: {string.Join(", ", args)}";
+            Console.Error.WriteLine(errorMsg);
+            MessageBox.Show(errorMsg, "MyFancyHud - Missing Data Folder Path", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Environment.Exit(1);
+            return;
+        }
+
+        // Ensure the path ends with a backslash
+        if (!dataFolderPath.EndsWith("\\"))
+        {
+            dataFolderPath += "\\";
+        }
+
+        // Set the data folder path (assume directory already exists)
+        Constants.DataFolderPath = dataFolderPath;
+
+        // Parse debug arguments (skip first arg which is the folder path)
         var debugConfig = new DebugConfiguration();
-        for (int i = 0; i < args.Length; i++)
+        for (int i = 1; i < args.Length; i++)
         {
             switch (args[i].ToLower())
             {
@@ -19,7 +48,7 @@ class Program
                     break;
                 case "--debug-scheduled-alert":
                     debugConfig.ShowScheduledMessage = true;
-                    debugConfig.ScheduledMessageKind = Schedule.Item.Kind.Alert;
+                    debugConfig.ScheduledMessageKind = Schedule.Item.Kind.StartTracking;
                     if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
                     {
                         debugConfig.ScheduledMessageText = args[i + 1];
@@ -28,7 +57,7 @@ class Program
                     break;
                 case "--debug-scheduled-success":
                     debugConfig.ShowScheduledMessage = true;
-                    debugConfig.ScheduledMessageKind = Schedule.Item.Kind.Success;
+                    debugConfig.ScheduledMessageKind = Schedule.Item.Kind.EndTracking;
                     if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
                     {
                         debugConfig.ScheduledMessageText = args[i + 1];
@@ -98,6 +127,6 @@ public class DebugConfiguration
     public bool ShowIdleMessage { get; set; }
     public bool ShowScheduledMessage { get; set; }
     public string ScheduledMessageText { get; set; } = "Debug scheduled message";
-    public Schedule.Item.Kind ScheduledMessageKind { get; set; } = Schedule.Item.Kind.Success;
+    public Schedule.Item.Kind ScheduledMessageKind { get; set; } = Schedule.Item.Kind.StartTracking;
     public int IdleTimeSeconds { get; set; } = Constants.DebugIdleTimeoutSeconds;
 }

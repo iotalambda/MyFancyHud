@@ -24,19 +24,19 @@ public class ScheduledMessageWindow : Form
         // Colors based on message kind
         Color bgColor, fgColor, buttonBgColor, buttonFgColor;
 
-        if (scheduleItem.ItemKind == Schedule.Item.Kind.Alert)
+        if (scheduleItem.ItemKind == Schedule.Item.Kind.StartTracking)
         {
-            bgColor = Color.Yellow;
-            fgColor = Color.Black;
-            buttonBgColor = Color.Black;
-            buttonFgColor = Color.Yellow;
-        }
-        else
-        {
-            bgColor = Color.FromArgb(0, 200, 0);
+            bgColor = Color.FromArgb(0, 200, 0); // Green for start tracking
             fgColor = Color.White;
             buttonBgColor = Color.FromArgb(0, 120, 215);
             buttonFgColor = Color.White;
+        }
+        else // EndTracking
+        {
+            bgColor = Color.Yellow; // Yellow for end tracking
+            fgColor = Color.Black;
+            buttonBgColor = Color.Black;
+            buttonFgColor = Color.Yellow;
         }
 
         // Form

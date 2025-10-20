@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dotnet build)"
+      "Bash(dotnet build)",
+      "Read(//c/dev/mfh_debug/**)"
     ],
     "deny": [],
     "ask": []

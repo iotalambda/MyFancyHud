@@ -75,8 +75,9 @@ if ($existingTask) {
 Write-Host "Creating scheduled task..." -ForegroundColor Green
 
 try {
-    # Task action: Run the executable
-    $action = New-ScheduledTaskAction -Execute $exePath
+    # Task action: Run the executable with data folder path argument
+    $dataFolderPath = "C:\dev\mfh\"
+    $action = New-ScheduledTaskAction -Execute $exePath -Argument "`"$dataFolderPath`""`
 
     # Task trigger: At user logon
     $trigger = New-ScheduledTaskTrigger -AtLogOn

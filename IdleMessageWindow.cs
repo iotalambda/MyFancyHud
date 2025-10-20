@@ -8,12 +8,18 @@ public class IdleMessageWindow : Form
     private System.Windows.Forms.Timer? fadeTimer;
     private System.Windows.Forms.Timer? updateTimer;
     private DateTime fadeStartTime;
+    private DateTime windowShownTime;
     private bool blinkPhase = false;
     private List<TimelineRenderer.TimelineChar>? timelineData;
+    private System.Media.SoundPlayer? soundPlayer;
+    private bool alarmPlaying = false;
+    private readonly TimeSpan idleTimeThreshold;
 
-    public IdleMessageWindow(string message)
+    public IdleMessageWindow(string message, TimeSpan idleThreshold)
     {
         InitializeComponent();
+        windowShownTime = DateTime.Now;
+        idleTimeThreshold = idleThreshold;
     }
 
     private void InitializeComponent()
@@ -45,15 +51,106 @@ public class IdleMessageWindow : Form
         // Start fade-in
         StartFadeIn();
 
-        // Start update timer for blinking
+        // Start update timer for blinking and alarm checking
         updateTimer = new System.Windows.Forms.Timer { Interval = 500 };
         updateTimer.Tick += (s, e) =>
         {
             blinkPhase = !blinkPhase;
             UpdateTimeline();
             this.Invalidate();
+            CheckAlarmTrigger();
         };
         updateTimer.Start();
+    }
+
+    private void CheckAlarmTrigger()
+    {
+        // Check if alarm should be triggered
+        var schedule = ScheduleLoader.Schedule;
+        if (schedule == null || string.IsNullOrWhiteSpace(schedule.AlarmSoundFile))
+            return;
+
+        if (alarmPlaying)
+            return;
+
+        // Check if we've been idle for 2x the idle timeout
+        var idleTimeoutMs = idleTimeThreshold.TotalMilliseconds;
+        var elapsedMs = (DateTime.Now - windowShownTime).TotalMilliseconds;
+
+        if (elapsedMs >= idleTimeoutMs * 2)
+        {
+            StartAlarm(schedule.AlarmSoundFile);
+        }
+    }
+
+    private void StartAlarm(string alarmSoundFile)
+    {
+        try
+        {
+            var soundFilePath = Path.Combine(Constants.DataFolderPath, alarmSoundFile);
+
+            if (!File.Exists(soundFilePath))
+            {
+                // Log error but don't crash
+                return;
+            }
+
+            // For MP3 files, we need to use a different approach
+            if (soundFilePath.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase))
+            {
+                // Use Windows Media Player COM object for MP3
+                PlayMp3Loop(soundFilePath);
+            }
+            else
+            {
+                // Use SoundPlayer for WAV files
+                soundPlayer = new System.Media.SoundPlayer(soundFilePath);
+                soundPlayer.PlayLooping();
+            }
+
+            alarmPlaying = true;
+        }
+        catch
+        {
+            // Ignore errors
+        }
+    }
+
+    private void PlayMp3Loop(string filePath)
+    {
+        // Use WMPLib to play MP3 in a loop
+        // We'll create a simple background thread to handle this
+        var thread = new System.Threading.Thread(() =>
+        {
+            try
+            {
+                var playerType = Type.GetTypeFromProgID("WMPLayer.OCX.7");
+                if (playerType == null)
+                    return;
+
+                dynamic? player = Activator.CreateInstance(playerType);
+                if (player == null)
+                    return;
+
+                player.URL = filePath;
+                player.settings.setMode("loop", true);
+                player.controls.play();
+
+                // Keep thread alive while window is open
+                while (!IsDisposed && alarmPlaying)
+                {
+                    System.Threading.Thread.Sleep(100);
+                }
+
+                player.controls.stop();
+            }
+            catch
+            {
+                // Fallback: use System.Media.SoundPlayer (won't work for MP3 but won't crash)
+            }
+        });
+        thread.IsBackground = true;
+        thread.Start();
     }
 
     private void UpdateTimeline()
@@ -181,6 +278,9 @@ public class IdleMessageWindow : Form
     {
         if (disposing)
         {
+            alarmPlaying = false;
+            soundPlayer?.Stop();
+            soundPlayer?.Dispose();
             updateTimer?.Stop();
             updateTimer?.Dispose();
             fadeTimer?.Stop();
