@@ -1,0 +1,20 @@
+{
+  "profiles": {
+    "Debug: Show Idle Message": {
+      "commandName": "Project",
+      "commandLineArgs": "--debug-idle"
+    },
+    "Debug: Show Idle Message (5 sec timeout)": {
+      "commandName": "Project",
+      "commandLineArgs": "--debug-idle --debug-idle-time 5"
+    },
+    "Debug: Show Alert Scheduled Message": {
+      "commandName": "Project",
+      "commandLineArgs": "--debug-scheduled-alert \"This is an alert message!\""
+    },
+    "Debug: Show Success Scheduled Message": {
+      "commandName": "Project",
+      "commandLineArgs": "--debug-scheduled-success \"This is a success message!\""
+    }
+  }
+}
