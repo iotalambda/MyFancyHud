@@ -17,6 +17,8 @@ public class MessageController
     private ScheduledMessageWindow? scheduledWindow;
     private bool wasIdle = false;
     private DateTime? lastScheduledMessageTime;
+    private DateTime lastRewardCheckTime = DateTime.MinValue;
+    private int starCount = 0;
 
     public MessageController(
         IdleDetectionService idleDetectionService,
@@ -37,6 +39,36 @@ public class MessageController
     {
         bool isIdle = idleDetectionService.IsIdle();
 
+        // Check if we are currently in a tracking period
+        var schedule = ScheduleLoader.Schedule;
+        bool isTrackingPeriod = schedule?.IsCurrentlyTracking(TimeOnly.FromDateTime(DateTime.Now)) ?? false;
+
+        // Reward logic: Check every 10 seconds if there was any activity in the last 10 seconds
+        if (isTrackingPeriod && (DateTime.Now - lastRewardCheckTime).TotalSeconds >= 10)
+        {
+            var idleTime = idleDetectionService.GetIdleTime();
+
+            // If there was activity in the last 10 seconds (idle time < 10 seconds)
+            if (idleTime.TotalSeconds < 10)
+            {
+                starCount++;
+                ShowReward(starCount);
+            }
+            else
+            {
+                // No activity in last 10 seconds, reset counter
+                starCount = 0;
+            }
+
+            lastRewardCheckTime = DateTime.Now;
+        }
+
+        // Reset star count if we're not in tracking period
+        if (!isTrackingPeriod)
+        {
+            starCount = 0;
+        }
+
         // Always respond to user becoming active - hide window immediately
         if (!isIdle && wasIdle)
         {
@@ -44,10 +76,6 @@ public class MessageController
             wasIdle = false;
             return;
         }
-
-        // Check if we are currently in a tracking period (only for showing window)
-        var schedule = ScheduleLoader.Schedule;
-        bool isTrackingPeriod = schedule?.IsCurrentlyTracking(TimeOnly.FromDateTime(DateTime.Now)) ?? false;
 
         // Only show idle window if we're in a tracking period
         if (isIdle && !wasIdle && isTrackingPeriod)
@@ -142,6 +170,35 @@ public class MessageController
             };
             scheduledWindow.Show();
             logger?.LogInformation($"Scheduled message shown: {message.Label}");
+        });
+    }
+
+    /// <summary>
+    /// Show reward windows for staying active
+    /// </summary>
+    private void ShowReward(int starCount)
+    {
+        InvokeOnUIThread(() =>
+        {
+            var random = new Random();
+
+            // Show multiple stars with random delays (0-10 seconds) so they trickle in
+            for (int i = 0; i < starCount; i++)
+            {
+                var delay = random.Next(0, 10001); // 0 to 10000 milliseconds (0-10 seconds)
+
+                var delayTimer = new System.Windows.Forms.Timer { Interval = delay + 1 };
+                delayTimer.Tick += (s, e) =>
+                {
+                    delayTimer.Stop();
+                    delayTimer.Dispose();
+
+                    var rewardWindow = new RewardWindow();
+                    rewardWindow.Show();
+                };
+                delayTimer.Start();
+            }
+            logger?.LogInformation($"Reward shown: {starCount} star(s) for staying active");
         });
     }
 
