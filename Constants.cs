@@ -30,6 +30,10 @@ public static class Constants
     public static readonly int ScheduledMessageHeight = 150;
     public static readonly int ScheduledMessageMargin = 20; // Distance from screen edge
 
+    // Reward Configuration
+    public static readonly int RewardCheckIntervalSeconds = 20; // How often to check for activity and award rewards (seconds)
+    public static readonly int RewardActivityWindowSeconds = 20; // Time window to check for user activity (seconds)
+
     // Schedule Loader Configuration
     public static string DataFolderPath { get; set; } = string.Empty;
     public static string ScheduleFilePath => Path.Combine(DataFolderPath, "schedule.json");

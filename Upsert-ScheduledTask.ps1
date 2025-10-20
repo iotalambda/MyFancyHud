@@ -2,6 +2,10 @@
 # This script creates or updates the MyFancyHud scheduled task to run at Windows startup
 # This is the RECOMMENDED approach since Windows Services cannot show UI
 
+param(
+    [switch]$y  # Auto-confirm: skip prompts and automatically start the task
+)
+
 $ErrorActionPreference = "Stop"
 
 # Check if running as Administrator
@@ -129,11 +133,16 @@ try {
     Write-Host "  Unregister-ScheduledTask -TaskName '$taskName'" -ForegroundColor Yellow
     Write-Host ""
 
-    # Ask if user wants to start it now
-    $startNow = Read-Host "Start MyFancyHud now? (Y/N)"
-    if ($startNow -eq 'Y' -or $startNow -eq 'y') {
+    # Ask if user wants to start it now (or auto-start if -y flag is used)
+    if ($y) {
         Start-ScheduledTask -TaskName $taskName
         Write-Host "MyFancyHud started!" -ForegroundColor Green
+    } else {
+        $startNow = Read-Host "Start MyFancyHud now? (Y/N)"
+        if ($startNow -eq 'Y' -or $startNow -eq 'y') {
+            Start-ScheduledTask -TaskName $taskName
+            Write-Host "MyFancyHud started!" -ForegroundColor Green
+        }
     }
 
 } catch {

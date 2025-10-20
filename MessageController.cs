@@ -43,20 +43,20 @@ public class MessageController
         var schedule = ScheduleLoader.Schedule;
         bool isTrackingPeriod = schedule?.IsCurrentlyTracking(TimeOnly.FromDateTime(DateTime.Now)) ?? false;
 
-        // Reward logic: Check every 10 seconds if there was any activity in the last 10 seconds
-        if (isTrackingPeriod && (DateTime.Now - lastRewardCheckTime).TotalSeconds >= 10)
+        // Reward logic: Check at interval if there was any activity in the activity window
+        if (isTrackingPeriod && (DateTime.Now - lastRewardCheckTime).TotalSeconds >= Constants.RewardCheckIntervalSeconds)
         {
             var idleTime = idleDetectionService.GetIdleTime();
 
-            // If there was activity in the last 10 seconds (idle time < 10 seconds)
-            if (idleTime.TotalSeconds < 10)
+            // If there was activity in the activity window (idle time < activity window)
+            if (idleTime.TotalSeconds < Constants.RewardActivityWindowSeconds)
             {
                 starCount++;
                 ShowReward(starCount);
             }
             else
             {
-                // No activity in last 10 seconds, reset counter
+                // No activity in the activity window, reset counter
                 starCount = 0;
             }
 
@@ -182,10 +182,10 @@ public class MessageController
         {
             var random = new Random();
 
-            // Show multiple stars with random delays (0-10 seconds) so they trickle in
+            // Show multiple stars with random delays (0.. seconds) so they trickle in
             for (int i = 0; i < starCount; i++)
             {
-                var delay = random.Next(0, 10001); // 0 to 10000 milliseconds (0-10 seconds)
+                var delay = random.Next(1, TimeSpan.FromSeconds(Constants.RewardCheckIntervalSeconds).Milliseconds + 1);
 
                 var delayTimer = new System.Windows.Forms.Timer { Interval = delay + 1 };
                 delayTimer.Tick += (s, e) =>

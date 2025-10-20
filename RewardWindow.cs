@@ -118,7 +118,7 @@ public class RewardWindow : Form
         var rainbowColor = GetRainbowColor(colorPhase);
 
         // Draw the character with color
-        var font = new Font("Wingdings", 48, FontStyle.Regular);
+        var font = new Font("Wingdings", 32, FontStyle.Regular);
         var size = g.MeasureString(rewardCharacter, font);
 
         // Center the character in the window
