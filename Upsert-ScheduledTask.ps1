@@ -28,6 +28,16 @@ Write-Host "This will configure MyFancyHud to run automatically at login" -Foreg
 Write-Host "using Windows Task Scheduler (RECOMMENDED for UI applications)" -ForegroundColor Green
 Write-Host ""
 
+# Stop any running instances of MyFancyHud
+Write-Host "Checking for running instances of MyFancyHud..." -ForegroundColor Yellow
+$runningProcesses = Get-Process -Name "MyFancyHud" -ErrorAction SilentlyContinue
+if ($runningProcesses) {
+    Write-Host "Stopping running instances..." -ForegroundColor Yellow
+    $runningProcesses | Stop-Process -Force
+    Start-Sleep -Seconds 2  # Give Windows time to release file locks
+    Write-Host "Stopped $($runningProcesses.Count) instance(s)" -ForegroundColor Green
+}
+
 # Build and publish the project
 Write-Host "Building and publishing the project..." -ForegroundColor Green
 Push-Location $projectPath
