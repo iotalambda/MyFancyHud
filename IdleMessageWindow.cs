@@ -9,6 +9,7 @@ public class IdleMessageWindow : Form
     private System.Windows.Forms.Timer? updateTimer;
     private DateTime fadeStartTime;
     private DateTime windowShownTime;
+    private DateTime? fadeInActualStartTime; // When fade-in actually started (after delay)
     private bool blinkPhase = false;
     private List<TimelineRenderer.TimelineChar>? timelineData;
     private System.Media.SoundPlayer? soundPlayer;
@@ -48,8 +49,23 @@ public class IdleMessageWindow : Form
         // Generate timeline data
         UpdateTimeline();
 
-        // Start fade-in
-        StartFadeIn();
+        // Start fade-in after delay (grace period)
+        if (Constants.IdleFadeInDelaySeconds > 0)
+        {
+            var delayTimer = new System.Windows.Forms.Timer { Interval = Constants.IdleFadeInDelaySeconds * 1000 };
+            delayTimer.Tick += (s, e) =>
+            {
+                delayTimer.Stop();
+                delayTimer.Dispose();
+                StartFadeIn();
+            };
+            delayTimer.Start();
+        }
+        else
+        {
+            // No delay, start immediately
+            StartFadeIn();
+        }
 
         // Start update timer for blinking and alarm checking
         updateTimer = new System.Windows.Forms.Timer { Interval = 500 };
@@ -73,11 +89,15 @@ public class IdleMessageWindow : Form
         if (alarmPlaying)
             return;
 
-        // Check if we've been idle for 2x the idle timeout
-        var idleTimeoutMs = idleTimeThreshold.TotalMilliseconds;
-        var elapsedMs = (DateTime.Now - windowShownTime).TotalMilliseconds;
+        // Only check alarm after fade-in has started
+        if (fadeInActualStartTime == null)
+            return;
 
-        if (elapsedMs >= idleTimeoutMs * 2)
+        // Check if we've been idle for 2x the idle timeout AFTER the fade-in started
+        var idleTimeoutMs = idleTimeThreshold.TotalMilliseconds;
+        var elapsedSinceFadeInMs = (DateTime.Now - fadeInActualStartTime.Value).TotalMilliseconds;
+
+        if (elapsedSinceFadeInMs >= idleTimeoutMs * 2)
         {
             StartAlarm(schedule.AlarmSoundFile);
         }
@@ -252,6 +272,7 @@ public class IdleMessageWindow : Form
     private void StartFadeIn()
     {
         fadeStartTime = DateTime.Now;
+        fadeInActualStartTime = DateTime.Now; // Track when fade-in actually started
         this.Opacity = 0.0;
 
         fadeTimer = new System.Windows.Forms.Timer { Interval = 50 };

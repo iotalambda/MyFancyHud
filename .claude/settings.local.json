@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(dotnet build)",
-      "Read(//c/dev/mfh_debug/**)"
+      "Read(//c/dev/mfh_debug/**)",
+      "Read(//c/dev/mfh/**)",
+      "Bash(cat \"C:\\dev\\mfh\\vignette_debug.log\")",
+      "Bash(cat \"C:\\dev\\mfh\\idle_detection_debug.log\")",
+      "Bash(del \"C:\\dev\\mfh\\idle_detection_debug.log\" \"C:\\dev\\mfh\\vignette_debug.log\")"
     ],
     "deny": [],
     "ask": []

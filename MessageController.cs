@@ -46,23 +46,31 @@ public class MessageController
         bool isTrackingPeriod = schedule?.IsCurrentlyTracking(TimeOnly.FromDateTime(DateTime.Now)) ?? false;
 
         // Reward logic: Check at interval if there was any activity in the activity window
-        if (isTrackingPeriod && (DateTime.Now - lastRewardCheckTime).TotalSeconds >= Constants.RewardCheckIntervalSeconds)
+        if (isTrackingPeriod && !isIdle && (DateTime.Now - lastRewardCheckTime).TotalSeconds >= Constants.RewardCheckIntervalSeconds)
         {
             var idleTime = idleDetectionService.GetIdleTime();
 
-            // If there was activity in the activity window (idle time < activity window)
-            if (idleTime.TotalSeconds < Constants.RewardActivityWindowSeconds)
+            // Only show rewards if idle time is very low (< 5 seconds)
+            // This prevents reward windows from interfering with idle detection
+            if (idleTime.TotalSeconds < Constants.RewardActivityWindowSeconds && idleTime.TotalSeconds < 5.0)
             {
                 starCount++;
                 ShowReward(starCount);
             }
-            else
+            else if (idleTime.TotalSeconds >= Constants.RewardActivityWindowSeconds)
             {
                 // No activity in the activity window, reset counter
                 starCount = 0;
             }
+            // If idle time is between 5s and activity window, keep star count but don't show new rewards
 
             lastRewardCheckTime = DateTime.Now;
+        }
+
+        // Reset star count if user is idle
+        if (isIdle && starCount > 0)
+        {
+            starCount = 0;
         }
 
         // Reset star count if we're not in tracking period
@@ -91,12 +99,30 @@ public class MessageController
                     // Been active long enough, show vignette and update growth
                     ShowVignette();
 
-                    // Start growth and update continuously
-                    if (vignetteWindow != null && !vignetteWindow.IsDisposed)
+                    // Start growth and update continuously (must be on UI thread)
+                    InvokeOnUIThread(() =>
                     {
-                        vignetteWindow.StartGrowth();
-                        vignetteWindow.UpdateGrowth();
-                    }
+                        try
+                        {
+                            if (vignetteWindow != null && !vignetteWindow.IsDisposed)
+                            {
+                                vignetteWindow.StartGrowth();
+                                vignetteWindow.UpdateGrowth();
+                            }
+                            else if (vignetteWindow == null)
+                            {
+                                logger?.LogWarning("Vignette window is null during update");
+                            }
+                            else if (vignetteWindow.IsDisposed)
+                            {
+                                logger?.LogWarning("Vignette window is disposed during update");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogError(ex, "Error updating vignette growth");
+                        }
+                    });
                 }
             }
             else
@@ -104,10 +130,19 @@ public class MessageController
                 // User is idle, hide vignette and reset activity timer
                 if (activityStartTime != null)
                 {
-                    logger?.LogInformation("User became idle, hiding vignette");
+                    logger?.LogInformation("User became idle during tracking period, hiding vignette");
+                    HideVignette();
+                    activityStartTime = null;
                 }
-                HideVignette();
-                activityStartTime = null;
+                else
+                {
+                    // User was already idle, but still call HideVignette to be safe
+                    if (vignetteWindow != null && !vignetteWindow.IsDisposed)
+                    {
+                        logger?.LogWarning("User is idle but vignette window still exists - forcing hide");
+                        HideVignette();
+                    }
+                }
             }
         }
         else
@@ -237,7 +272,6 @@ public class MessageController
                 vignetteWindow = new ActivityVignetteWindow();
                 vignetteWindow.Show();
                 logger?.LogInformation("Activity vignette window created and shown");
-                System.Diagnostics.Debug.WriteLine("MessageController: Vignette window created and shown");
             }
         });
     }
@@ -247,15 +281,29 @@ public class MessageController
     /// </summary>
     private void HideVignette()
     {
-        InvokeOnUIThread(() =>
+        // Use synchronous invoke for hiding to ensure it completes
+        InvokeOnUIThreadSync(() =>
         {
-            if (vignetteWindow != null && !vignetteWindow.IsDisposed)
+            try
             {
-                vignetteWindow.ResetGrowth();
-                vignetteWindow.Close();
-                vignetteWindow.Dispose();
-                vignetteWindow = null;
-                logger?.LogInformation("Activity vignette hidden");
+                if (vignetteWindow != null && !vignetteWindow.IsDisposed)
+                {
+                    vignetteWindow.ForceHideAllLayers(); // Force hide layers first
+                    vignetteWindow.ResetGrowth();
+                    vignetteWindow.Close();
+                    vignetteWindow.Dispose();
+                    vignetteWindow = null;
+                    logger?.LogInformation("Activity vignette hidden successfully");
+                }
+                else
+                {
+                    vignetteWindow = null; // Ensure it's null
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Error hiding vignette");
+                vignetteWindow = null; // Clear reference even on error
             }
         });
     }
@@ -309,40 +357,117 @@ public class MessageController
     }
 
     /// <summary>
-    /// Execute action on UI thread (handles both SynchronizationContext and Control.Invoke approaches)
+    /// Execute action on UI thread asynchronously (fire-and-forget)
     /// </summary>
     private void InvokeOnUIThread(Action action)
     {
-        if (syncContext != null)
+        try
         {
-            // Use SynchronizationContext if available (better for Worker)
-            syncContext.Post(_ => action(), null);
-        }
-        else
-        {
-            // Use Control.Invoke if we're already on UI thread (better for DebugControllerForm)
-            if (Control.CheckForIllegalCrossThreadCalls && !IsOnUIThread())
+            if (syncContext != null)
             {
-                // Create a temporary control to invoke on UI thread
-                var invoker = new Control();
-                var handle = invoker.Handle; // Force handle creation
-
-                if (invoker.InvokeRequired)
+                // Use SynchronizationContext if available (better for Worker)
+                syncContext.Post(_ =>
                 {
-                    invoker.Invoke(action);
-                }
-                else
-                {
-                    action();
-                }
-
-                invoker.Dispose();
+                    try
+                    {
+                        action();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.LogError(ex, "Error executing UI action via SynchronizationContext");
+                        System.Diagnostics.Debug.WriteLine($"UI action error: {ex.Message}");
+                    }
+                }, null);
             }
             else
             {
-                // We're already on UI thread or cross-thread calls are allowed
-                action();
+                // Use Control.Invoke if we're already on UI thread (better for DebugControllerForm)
+                if (Control.CheckForIllegalCrossThreadCalls && !IsOnUIThread())
+                {
+                    // Create a temporary control to invoke on UI thread
+                    var invoker = new Control();
+                    var handle = invoker.Handle; // Force handle creation
+
+                    if (invoker.InvokeRequired)
+                    {
+                        invoker.Invoke(action);
+                    }
+                    else
+                    {
+                        action();
+                    }
+
+                    invoker.Dispose();
+                }
+                else
+                {
+                    // We're already on UI thread or cross-thread calls are allowed
+                    action();
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error in InvokeOnUIThread");
+            System.Diagnostics.Debug.WriteLine($"InvokeOnUIThread error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Execute action on UI thread synchronously (waits for completion)
+    /// </summary>
+    private void InvokeOnUIThreadSync(Action action)
+    {
+        try
+        {
+            if (syncContext != null)
+            {
+                // Use Send instead of Post for synchronous execution
+                syncContext.Send(_ =>
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.LogError(ex, "Error executing UI action via SynchronizationContext.Send");
+                        System.Diagnostics.Debug.WriteLine($"UI action error (sync): {ex.Message}");
+                        throw; // Re-throw to propagate to caller
+                    }
+                }, null);
+            }
+            else
+            {
+                // Use Control.Invoke if we're already on UI thread (better for DebugControllerForm)
+                if (Control.CheckForIllegalCrossThreadCalls && !IsOnUIThread())
+                {
+                    // Create a temporary control to invoke on UI thread
+                    var invoker = new Control();
+                    var handle = invoker.Handle; // Force handle creation
+
+                    if (invoker.InvokeRequired)
+                    {
+                        invoker.Invoke(action);
+                    }
+                    else
+                    {
+                        action();
+                    }
+
+                    invoker.Dispose();
+                }
+                else
+                {
+                    // We're already on UI thread or cross-thread calls are allowed
+                    action();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Error in InvokeOnUIThreadSync");
+            System.Diagnostics.Debug.WriteLine($"InvokeOnUIThreadSync error: {ex.Message}");
         }
     }
 

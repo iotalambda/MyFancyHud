@@ -77,6 +77,26 @@ public class ActivityVignetteWindow : Form
         System.Diagnostics.Debug.WriteLine("ActivityVignetteWindow: Growth reset");
     }
 
+    /// <summary>
+    /// Force hide all layers immediately (for cleanup)
+    /// </summary>
+    public void ForceHideAllLayers()
+    {
+        foreach (var layer in layers)
+        {
+            try
+            {
+                if (!layer.IsDisposed)
+                {
+                    layer.Opacity = 0.0;
+                    layer.Hide();
+                }
+            }
+            catch { }
+        }
+        System.Diagnostics.Debug.WriteLine("ActivityVignetteWindow: All layers force-hidden");
+    }
+
     private void UpdateLayers(double opacity, int gradeSize, double rainbowIntensity)
     {
         for (int i = 0; i < layers.Count; i++)
@@ -148,10 +168,31 @@ public class ActivityVignetteWindow : Form
     {
         if (disposing)
         {
+            // Immediately hide all layers by setting opacity to 0
             foreach (var layer in layers)
             {
-                layer.Close();
-                layer.Dispose();
+                try
+                {
+                    if (!layer.IsDisposed)
+                    {
+                        layer.Opacity = 0.0; // Immediately hide
+                    }
+                }
+                catch { }
+            }
+
+            // Then close and dispose
+            foreach (var layer in layers)
+            {
+                try
+                {
+                    if (!layer.IsDisposed)
+                    {
+                        layer.Close();
+                        layer.Dispose();
+                    }
+                }
+                catch { }
             }
             layers.Clear();
         }
@@ -196,12 +237,14 @@ internal class VignetteLayer : Form
         InitializeComponent();
 
         // Create timer for rainbow animation
-        rainbowTimer = new System.Windows.Forms.Timer { Interval = 30 }; // 30ms for smooth animation
+        rainbowTimer = new System.Windows.Forms.Timer { Interval = Constants.ActivityVignetteRainbowUpdateIntervalMs };
         rainbowTimer.Tick += (s, e) =>
         {
             if (currentRainbowIntensity > 0.0)
             {
-                colorPhase = (colorPhase + 5) % 360; // Increment phase
+                // Calculate how much to increment based on interval to maintain consistent cycle duration
+                int degreesPerTick = (int)(360.0 / (Constants.ActivityVignetteRainbowCycleDurationMs / (double)Constants.ActivityVignetteRainbowUpdateIntervalMs));
+                colorPhase = (colorPhase + degreesPerTick) % 360; // Increment phase
                 this.Invalidate(); // Trigger repaint
             }
         };
@@ -242,6 +285,12 @@ internal class VignetteLayer : Form
             {
                 rainbowTimer.Stop();
             }
+        }
+
+        // Ensure timer is still running if we have rainbow intensity (defensive check for scheduled task context)
+        if (this.currentRainbowIntensity > 0.0 && rainbowTimer != null && !rainbowTimer.Enabled)
+        {
+            rainbowTimer.Start();
         }
 
         if (needsRepaint)
